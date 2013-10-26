@@ -115,6 +115,8 @@ object SparkBuild extends Build {
     resolvers ++= Seq("sonatype-snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
       "sonatype-staging" at "https://oss.sonatype.org/service/local/staging/deploy/maven2/"),
 
+    resolvers ++= Seq("Hortonworks" at "http://repo.hortonworks.com/content/repositories/releases/"),
+
     publishMavenStyle := true,
 
     //useGpg in Global := true,
@@ -220,6 +222,10 @@ object SparkBuild extends Build {
       "org.apache.mesos" % "mesos" % "0.13.0",
       "io.netty" % "netty-all" % "4.0.0.Beta2",
       "org.apache.derby" % "derby" % "10.4.2.0" % "test",
+      "org.apache.hadoop" % "hadoop-common" % hadoopVersion ,
+      "org.apache.hadoop" % "hadoop-yarn-common" % hadoopVersion ,
+      "org.apache.hadoop" % "hadoop-yarn-client" % hadoopVersion ,
+      "org.apache.hadoop" % "hadoop-mapreduce-client-core" % hadoopVersion ,
       "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(excludeJackson, excludeNetty, excludeAsm, excludeCglib),
       "net.java.dev.jets3t" % "jets3t" % "0.7.1",
       "org.apache.avro" % "avro" % "1.7.4",

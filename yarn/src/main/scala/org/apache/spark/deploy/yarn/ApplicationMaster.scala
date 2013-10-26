@@ -42,7 +42,7 @@ class ApplicationMaster(args: ApplicationMasterArguments, conf: Configuration) e
   def this(args: ApplicationMasterArguments) = this(args, new Configuration())
   
   private var rpc: YarnRPC = YarnRPC.create(conf)
-  private var resourceManager: AMRMProtocol = null
+  private var resourceManager: ApplicationMasterProtocol = null
   private var appAttemptId: ApplicationAttemptId = null
   private var userThread: Thread = null
   private val yarnConf: YarnConfiguration = new YarnConfiguration(conf)
@@ -51,8 +51,7 @@ class ApplicationMaster(args: ApplicationMasterArguments, conf: Configuration) e
   private var yarnAllocator: YarnAllocationHandler = null
   private var isFinished:Boolean = false
   private var uiAddress: String = ""
-  private val maxAppAttempts: Int = conf.getInt(YarnConfiguration.RM_AM_MAX_RETRIES,
-    YarnConfiguration.DEFAULT_RM_AM_MAX_RETRIES)
+  private val maxAppAttempts: Int = 1 //TODO read from variable
   private var isLastAMRetry: Boolean = true
 
 
@@ -127,19 +126,19 @@ class ApplicationMaster(args: ApplicationMasterArguments, conf: Configuration) e
   
   private def getApplicationAttemptId(): ApplicationAttemptId = {
     val envs = System.getenv()
-    val containerIdString = envs.get(ApplicationConstants.AM_CONTAINER_ID_ENV)
+    val containerIdString = envs.get("AM_CONTAINER_ID")//TODO
     val containerId = ConverterUtils.toContainerId(containerIdString)
     val appAttemptId = containerId.getApplicationAttemptId()
     logInfo("ApplicationAttemptId: " + appAttemptId)
     return appAttemptId
   }
   
-  private def registerWithResourceManager(): AMRMProtocol = {
+  private def registerWithResourceManager(): ApplicationMasterProtocol = {
     val rmAddress = NetUtils.createSocketAddr(yarnConf.get(
       YarnConfiguration.RM_SCHEDULER_ADDRESS,
       YarnConfiguration.DEFAULT_RM_SCHEDULER_ADDRESS))
     logInfo("Connecting to ResourceManager at " + rmAddress)
-    return rpc.getProxy(classOf[AMRMProtocol], rmAddress, conf).asInstanceOf[AMRMProtocol]
+    return rpc.getProxy(classOf[ApplicationMasterProtocol], rmAddress, conf).asInstanceOf[ApplicationMasterProtocol]
   }
   
   private def registerApplicationMaster(): RegisterApplicationMasterResponse = {
@@ -186,8 +185,8 @@ class ApplicationMaster(args: ApplicationMasterArguments, conf: Configuration) e
         var successed = false
         try {
           // Copy
-          var mainArgs: Array[String] = new Array[String](args.userArgs.size())
-          args.userArgs.copyToArray(mainArgs, 0, args.userArgs.size())
+          var mainArgs: Array[String] = new Array[String](args.userArgs.size)
+          args.userArgs.copyToArray(mainArgs, 0, args.userArgs.size)
           mainMethod.invoke(null, mainArgs)
           // some job script has "System.exit(0)" at the end, for example SparkPi, SparkLR
           // userThread will stop here unless it has uncaught exception thrown out
@@ -334,7 +333,7 @@ class ApplicationMaster(args: ApplicationMasterArguments, conf: Configuration) e
     val finishReq = Records.newRecord(classOf[FinishApplicationMasterRequest])
       .asInstanceOf[FinishApplicationMasterRequest]
     finishReq.setAppAttemptId(appAttemptId)
-    finishReq.setFinishApplicationStatus(status)
+    finishReq.setFinalApplicationStatus(status)
     // set tracking url to empty since we don't have a history server
     finishReq.setTrackingUrl("")
     resourceManager.finishApplicationMaster(finishReq)

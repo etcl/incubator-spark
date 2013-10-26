@@ -28,7 +28,6 @@ import org.apache.hadoop.security.UserGroupInformation
 import org.apache.hadoop.yarn.api._
 import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.api.protocolrecords._
-import org.apache.hadoop.yarn.client.YarnClientImpl
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.apache.hadoop.yarn.ipc.YarnRPC
 import scala.collection.mutable.HashMap
@@ -38,6 +37,7 @@ import org.apache.spark.util.Utils
 import org.apache.hadoop.yarn.util.{Apps, Records, ConverterUtils}
 import org.apache.hadoop.yarn.api.ApplicationConstants.Environment
 import org.apache.spark.deploy.SparkHadoopUtil
+import org.apache.hadoop.yarn.client.api.impl.YarnClientImpl
 
 class Client(conf: Configuration, args: ClientArguments) extends YarnClientImpl with Logging {
   
@@ -58,18 +58,17 @@ class Client(conf: Configuration, args: ClientArguments) extends YarnClientImpl 
     start()
     logClusterResourceDetails()
 
-    val newApp = super.getNewApplication()
-    val appId = newApp.getApplicationId()
+    val newApp = this.createApplication()
+    val appId = newApp.getApplicationSubmissionContext.getApplicationId
 
-    verifyClusterResources(newApp)
     val appContext = createApplicationSubmissionContext(appId)
     val localResources = prepareLocalResources(appId, ".sparkStaging")
     val env = setupLaunchEnv(localResources)
-    val amContainer = createContainerLaunchContext(newApp, localResources, env)
+    val amContainer = createContainerLaunchContext(newApp.getApplicationSubmissionContext, localResources, env)
 
     appContext.setQueue(args.amQueue)
     appContext.setAMContainerSpec(amContainer)
-    appContext.setUser(UserGroupInformation.getCurrentUser().getShortUserName())
+    //appContext.setUser(UserGroupInformation.getCurrentUser().getShortUserName())
 
     submitApp(appContext)
     
@@ -317,7 +316,7 @@ class Client(conf: Configuration, args: ClientArguments) extends YarnClientImpl 
     retval.toString
   }
 
-  def createContainerLaunchContext(newApp: GetNewApplicationResponse,
+  def createContainerLaunchContext(newApp: ApplicationSubmissionContext,
                                    localResources: HashMap[String, LocalResource],
                                    env: HashMap[String, String]): ContainerLaunchContext = {
     logInfo("Setting up container launch context")
@@ -325,7 +324,7 @@ class Client(conf: Configuration, args: ClientArguments) extends YarnClientImpl 
     amContainer.setLocalResources(localResources)
     amContainer.setEnvironment(env)
 
-    val minResMemory: Int = newApp.getMinimumResourceCapability().getMemory()
+    val minResMemory: Int = 1
 
     var amMemory = ((args.amMemory / minResMemory) * minResMemory) +
         (if (0 != (args.amMemory % minResMemory)) minResMemory else 0) - YarnAllocationHandler.MEMORY_OVERHEAD
@@ -383,12 +382,12 @@ class Client(conf: Configuration, args: ClientArguments) extends YarnClientImpl 
     val capability = Records.newRecord(classOf[Resource]).asInstanceOf[Resource]
     // Memory for the ApplicationMaster
     capability.setMemory(args.amMemory + YarnAllocationHandler.MEMORY_OVERHEAD)
-    amContainer.setResource(capability)
+    newApp.setResource(capability)
 
     // Setup security tokens
     val dob = new DataOutputBuffer()
     credentials.writeTokenStorageToStream(dob)
-    amContainer.setContainerTokens(ByteBuffer.wrap(dob.getData()))
+    //amContainer.setContainerTokens(ByteBuffer.wrap(dob.getData()))
 
     return amContainer
   }
@@ -407,7 +406,7 @@ class Client(conf: Configuration, args: ClientArguments) extends YarnClientImpl 
       logInfo("Application report from ASM: \n" +
         "\t application identifier: " + appId.toString() + "\n" +
         "\t appId: " + appId.getId() + "\n" +
-        "\t clientToken: " + report.getClientToken() + "\n" +
+        //"\t clientToken: " + report.getClientToken() + "\n" +
         "\t appDiagnostics: " + report.getDiagnostics() + "\n" +
         "\t appMasterHost: " + report.getHost() + "\n" +
         "\t appQueue: " + report.getQueue() + "\n" +
